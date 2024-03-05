@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  zerotier-moon:
+    image: criogaid/zerotier-moon
+    restart: unless-stopped
+    container_name: zerotier-moon
+    ports:
+      - "9993:9993/udp"
+    volumes:
+      - ./zerotier-one:/var/lib/zerotier-one
+    environment:
+      - ZEROTIER_JOIN_NETWORKS=
+      - ZEROTIER_API_SECRET=
+      - ZEROTIER_IDENTITY_PUBLIC=
+      - ZEROTIER_IDENTITY_SECRET=
+    devices:
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    command:
+      - -4 YourIPv4Address
+      - -6 YourIPv6AddressIfYouHaveOne
+      - -p 9993
