@@ -43,7 +43,8 @@ services:
       - ./zerotier-one:/var/lib/zerotier-one
 
     # Set the ZEROTIER_JOIN_NETWORKS environment variable to the specified network ID
-    # Or you can make it join to multiple networks by [network1, network2, ...]
+    # Or you can make it join to multiple networks by network1 network2 ...
+    # Example: ZEROTIER_JOIN_NETWORKS=888888888888888 666666666666666 sssssssssssssss ...
     environment:
       - ZEROTIER_JOIN_NETWORKS= # Optional, the network ID you want to join
       - ZEROTIER_API_SECRET=  # Optional, if you want to use the ZeroTier Central API
