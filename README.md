@@ -13,6 +13,7 @@
     - [Parameters](#parameters)
   - [Docker Compose Configuration](#docker-compose-configuration)
   - [Log Output](#log-output)
+  - [Example](#example)
   - [Conclusion](#conclusion)
 
 ## Overview
@@ -95,6 +96,16 @@ Your ZeroTier moon ID is xxxxxxxxxx. You can orbit the moon using "zerotier-cli 
 Starting Control Plane...
 Starting V6 Control Plane...
 ```
+
+## Example
+To join specific ZeroTier networks, you can set the `ZEROTIER_JOIN_NETWORKS` environment variable in your Docker Compose configuration. For example:
+
+```yaml
+environment:
+  - ZEROTIER_JOIN_NETWORKS=888888888888888 666666666666666 999999999999999
+```
+
+In this example, the ZeroTier moon will join the networks with IDs `888888888888888`, `666666666666666`, and `999999999999999`. You can specify multiple network IDs separated by spaces.
 
 ## Conclusion
 This Docker image simplifies the process of setting up a ZeroTier moon, allowing you to focus on building your network. For any issues or contributions, feel free to open an issue or pull request in this repository. Happy networking!
