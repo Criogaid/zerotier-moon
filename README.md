@@ -1,7 +1,39 @@
-# zerotier-moon
-🐳 A docker image to create ZeroTier moon in one step.
+# ZeroTier Moon Docker Image
+
+🐳 A Docker image for creating a ZeroTier moon in a single step.
+
+## Table of Contents
+- [ZeroTier Moon Docker Image](#zerotier-moon-docker-image)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Building the Image](#building-the-image)
+    - [Prerequisites](#prerequisites)
+    - [Steps](#steps)
+  - [Usage](#usage)
+    - [Parameters](#parameters)
+  - [Docker Compose Configuration](#docker-compose-configuration)
+  - [Log Output](#log-output)
+  - [Conclusion](#conclusion)
+
+## Overview
+This repository provides a Docker image to easily set up a ZeroTier moon, which acts as a control plane for your ZeroTier network. With this image, you can quickly deploy a ZeroTier moon with minimal configuration.
+
+## Building the Image
+
+### Prerequisites
+Ensure you have Docker installed on your machine.
+
+### Steps
+1. Open the `Dockerfile` and locate the line `ARG TAG=main`.
+2. Replace `main` with the desired ZeroTier release tag, such as `1.14.1` or `1.14.0`.
+3. Build the Docker image using the following command:
+   ```bash
+   docker build -t your-image-name .
+   ```
 
 ## Usage
+To run the ZeroTier moon, execute the following command:
+
 ```bash
 docker run --rm \
   --name zerotier-moon \
@@ -16,65 +48,53 @@ docker run --rm \
   -p 9993
 ```
 
+### Parameters
+- `YourIPv4Address`: Replace with your actual IPv4 address. If you do not have one, you can omit this parameter.
+- `YourIPv6AddressIfYouHaveOne`: Replace with your actual IPv6 address if available. If not, you can omit this parameter.
 
-## Docker-compose 
+## Docker Compose Configuration
+For a more streamlined setup, you can use Docker Compose. Below is a sample configuration:
 
 ```yaml
 version: '3'
 
-# Define the services section
 services:
   zerotier-moon:
-    # Use the criogaid/zerotier-moon image
     image: criogaid/zerotier-moon
-
-    # Restart the container automatically if it crashes
     restart: unless-stopped
-
-    # Set the container name to "zerotier-moon"
     container_name: zerotier-moon
-
-    # Publish port 9993/udp from the container to the host
     ports:
       - "9993:9993/udp"
-
-    # Mount the ./zerotier-one directory from the host to /var/lib/zerotier-one in the container
     volumes:
       - ./zerotier-one:/var/lib/zerotier-one
-
-    # Set the ZEROTIER_JOIN_NETWORKS environment variable to the specified network ID
-    # Or you can make it join to multiple networks by network1 network2 ...
-    # Example: ZEROTIER_JOIN_NETWORKS=888888888888888 666666666666666 sssssssssssssss ...
     environment:
-      - ZEROTIER_JOIN_NETWORKS= # Optional, the network ID you want to join
-      - ZEROTIER_API_SECRET=  # Optional, if you want to use the ZeroTier Central API
-      - ZEROTIER_IDENTITY_PUBLIC= # Optional, if you want to use a custom identity
-      - ZEROTIER_IDENTITY_SECRET= # Optional, if you want to use a custom identity
-
-    # Allow the container to access the host's network devices
+      - ZEROTIER_JOIN_NETWORKS= # Optional, specify the network ID(s) to join
+      - ZEROTIER_API_SECRET= # Optional, for ZeroTier Central API access
+      - ZEROTIER_IDENTITY_PUBLIC= # Optional, for custom identity
+      - ZEROTIER_IDENTITY_SECRET= # Optional, for custom identity
     devices:
       - /dev/net/tun
-
-    # Add NET_ADMIN and SYS_ADMIN capabilities to the container
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN
-
-    # Set the command to be executed when the container starts
     command:
-      - -4 YourIPv4Address # if you don't have an IPv4 address, you can remove this line
-      - -6 YourIPv6AddressIfYouHaveOne # if you don't have an IPv6 address, you can remove this line
-      - -p 9993 # Optional, the port you want to use
+      - -4 YourIPv4Address # Optional, if you don't have an IPv4 address, remove this line
+      - -6 YourIPv6AddressIfYouHaveOne # Optional, if you don't have an IPv6 address, remove this line
+      - -p 9993 # Optional, specify the port to use
 ```
 
-## Logs Output
-If everything goes well, you will see the following logs:
+## Log Output
+Upon successful startup, you should see logs similar to the following:
+
 ```bash
 IPv4 address: xxx.xxx.xxx.xxx
-IPv6 address is unset, automatically catch the IPv6 address
+IPv6 address is unset, automatically catching the IPv6 address
 Failed to catch the IPv6 address.
-\r=> Configuring networks to join
-Your ZeroTier moon id is xxxxxxxxxx, you could orbit moon using "zerotier-cli orbit xxxxxxxxx xxxxxxxxx"
+=> Configuring networks to join
+Your ZeroTier moon ID is xxxxxxxxxx. You can orbit the moon using "zerotier-cli orbit xxxxxxxxx xxxxxxxxx"
 Starting Control Plane...
 Starting V6 Control Plane...
 ```
+
+## Conclusion
+This Docker image simplifies the process of setting up a ZeroTier moon, allowing you to focus on building your network. For any issues or contributions, feel free to open an issue or pull request in this repository. Happy networking!
