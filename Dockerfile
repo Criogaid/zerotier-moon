@@ -1,4 +1,4 @@
-FROM alpine:latest as builder
+FROM alpine:latest AS builder
 
 # Set timezone to Asia/Shanghai
 ENV TZ=Asia/Shanghai
@@ -25,9 +25,11 @@ RUN set -x \
 
 # Clone the ZeroTierOne repository
 RUN set -x \
-    && git clone https://github.com/zerotier/ZeroTierOne.git \
-    && cd ZeroTierOne \
-    && git checkout ${TAG}
+    && git clone https://github.com/zerotier/ZeroTierOne.git
+
+WORKDIR ZeroTierOne
+
+RUN git checkout ${TAG}
 
 # Build and install ZeroTierOne
 RUN set -x \
@@ -41,7 +43,7 @@ RUN zerotier-one -d
 RUN sleep 5s
 
 # Kill any remaining ZeroTierOne processes
-RUN ps -ef |grep zerotier-one |grep -v grep |awk '{print $1}' |xargs kill -9
+# RUN ps -ef |grep zerotier-one |grep -v grep |awk '{print $2}' |xargs kill -9
 
 # Use Alpine Linux as the base image
 FROM alpine:latest
