@@ -36,15 +36,6 @@ RUN set -x \
     && make CPPFLAGS+=-w \
     && make install
 
-# Start ZeroTierOne in daemon mode
-RUN zerotier-one -d
-
-# Wait 5 seconds for ZeroTierOne to start
-RUN sleep 5s
-
-# Kill any remaining ZeroTierOne processes
-# RUN ps -ef |grep zerotier-one |grep -v grep |awk '{print $2}' |xargs kill -9
-
 # Use Alpine Linux as the base image
 FROM alpine:latest
 

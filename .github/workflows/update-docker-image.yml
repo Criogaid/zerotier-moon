@@ -1,0 +1,147 @@
+name: Update Docker Image
+
+on:
+  schedule:
+    # 每天 UTC 时间 08:00 运行 (北京时间 16:00)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    outputs:
+      should-build: ${{ steps.compare.outputs.should-build }}
+      new-tag: ${{ steps.compare.outputs.new-tag }}
+      current-tag: ${{ steps.get-docker-tag.outputs.tag }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Get latest ZeroTierOne release tag
+      id: get-zerotier-tag
+      run: |
+        echo "Fetching latest ZeroTierOne release tag..."
+        LATEST_TAG=$(curl -s "https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        echo "Latest ZeroTierOne tag: $LATEST_TAG"
+        echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        
+    - name: Get current Docker Hub tag
+      id: get-docker-tag
+      run: |
+        echo "Fetching current Docker Hub tag..."
+        # 获取Docker Hub仓库的最新标签
+        DOCKER_TAGS=$(curl -s "https://registry.hub.docker.com/v2/repositories/criogaid/zerotier-moon/tags/?page_size=100" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+        echo "Current Docker Hub tag: $DOCKER_TAGS"
+        echo "tag=$DOCKER_TAGS" >> $GITHUB_OUTPUT
+        
+    - name: Make compare script executable
+      run: chmod +x scripts/compare-versions.sh
+      
+    - name: Compare versions
+      id: compare
+      run: |
+        ZEROTIER_TAG="${{ steps.get-zerotier-tag.outputs.tag }}"
+        DOCKER_TAG="${{ steps.get-docker-tag.outputs.tag }}"
+        
+        echo "ZeroTierOne tag: $ZEROTIER_TAG"
+        echo "Docker Hub tag: $DOCKER_TAG"
+        
+        # 如果Docker Hub没有版本标签，直接构建
+        if [ -z "$DOCKER_TAG" ]; then
+          echo "No version tag found on Docker Hub, building image..."
+          echo "should-build=true" >> $GITHUB_OUTPUT
+          echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
+        else
+          # 使用版本比较脚本
+          ./scripts/compare-versions.sh "$ZEROTIER_TAG" "$DOCKER_TAG"
+          COMPARE_RESULT=$?
+          
+          if [ $COMPARE_RESULT -eq 3 ]; then
+            # 版本格式错误，默认构建以防万一
+            echo "Version format error, building image by default..."
+            echo "should-build=true" >> $GITHUB_OUTPUT
+            echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
+          elif [ $COMPARE_RESULT -eq 1 ]; then
+            echo "New version detected ($ZEROTIER_TAG > $DOCKER_TAG), building image..."
+            echo "should-build=true" >> $GITHUB_OUTPUT
+            echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
+          elif [ $COMPARE_RESULT -eq 0 ]; then
+            echo "Versions are equal ($ZEROTIER_TAG = $DOCKER_TAG), skipping build..."
+            echo "should-build=false" >> $GITHUB_OUTPUT
+          else
+            echo "Docker Hub version is newer ($DOCKER_TAG > $ZEROTIER_TAG), skipping build..."
+            echo "should-build=false" >> $GITHUB_OUTPUT
+          fi
+        fi
+        
+  build-and-push:
+    needs: check-and-build
+    if: needs.check-and-build.outputs.should-build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: criogaid/zerotier-moon
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=${{ needs.check-and-build.outputs.new-tag }}
+          type=raw,value=latest
+          
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        build-args: TAG=${{ needs.check-and-build.outputs.new-tag }}
+        tags: |
+          criogaid/zerotier-moon:${{ needs.check-and-build.outputs.new-tag }}
+          criogaid/zerotier-moon:latest
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Make scripts executable
+      run: |
+        chmod +x scripts/compare-versions.sh
+        chmod +x scripts/notify.sh
+        
+    - name: Notify success
+      if: success()
+      run: |
+        ./scripts/notify.sh success "Successfully built and pushed Docker image criogaid/zerotier-moon:${{ needs.check-and-build.outputs.new-tag }}" "${{ secrets.WEBHOOK_URL }}"
+        
+    - name: Notify failure
+      if: failure()
+      run: |
+        ./scripts/notify.sh failure "Failed to build Docker image for ZeroTierOne version ${{ needs.check-and-build.outputs.new-tag }}" "${{ secrets.WEBHOOK_URL }}"
+        
+    - name: Image digest
+      if: success()
+      run: echo ${{ steps.build.outputs.digest }}
