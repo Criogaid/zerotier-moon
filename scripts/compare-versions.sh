@@ -62,7 +62,8 @@ if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
     version_compare $1 $2
     case $? in
         0) echo "$1 = $2"; exit 0;;
-        1) echo "$1 > $2"; exit 1;;
-        2) echo "$1 < $2"; exit 2;;
+        1) echo "$1 > $2"; exit 0;;  # 改为总是以0退出，避免终止工作流
+        2) echo "$1 < $2"; exit 0;;  # 改为总是以0退出，避免终止工作流
+        3) echo "Error: Invalid version format"; exit 1;;  # 只有格式错误时才非零退出
     esac
 fi

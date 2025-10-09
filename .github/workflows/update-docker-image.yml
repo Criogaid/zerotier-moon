@@ -53,20 +53,21 @@ jobs:
           echo "should-build=true" >> $GITHUB_OUTPUT
           echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
         else
-          # 使用版本比较脚本
-          ./scripts/compare-versions.sh "$ZEROTIER_TAG" "$DOCKER_TAG"
-          COMPARE_RESULT=$?
+          # 使用版本比较脚本并从输出中解析结果
+          COMPARE_OUTPUT=$(./scripts/compare-versions.sh "$ZEROTIER_TAG" "$DOCKER_TAG")
+          echo "Compare output: $COMPARE_OUTPUT"
           
-          if [ $COMPARE_RESULT -eq 3 ]; then
+          # 从输出中解析比较结果
+          if [[ $COMPARE_OUTPUT == *"Error: Invalid version format"* ]]; then
             # 版本格式错误，默认构建以防万一
             echo "Version format error, building image by default..."
             echo "should-build=true" >> $GITHUB_OUTPUT
             echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
-          elif [ $COMPARE_RESULT -eq 1 ]; then
+          elif [[ $COMPARE_OUTPUT == *">"* ]]; then
             echo "New version detected ($ZEROTIER_TAG > $DOCKER_TAG), building image..."
             echo "should-build=true" >> $GITHUB_OUTPUT
             echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
-          elif [ $COMPARE_RESULT -eq 0 ]; then
+          elif [[ $COMPARE_OUTPUT == *"="* ]]; then
             echo "Versions are equal ($ZEROTIER_TAG = $DOCKER_TAG), skipping build..."
             echo "should-build=false" >> $GITHUB_OUTPUT
           else
