@@ -14,6 +14,10 @@
   - [Docker Compose Configuration](#docker-compose-configuration)
   - [Log Output](#log-output)
   - [Example](#example)
+  - [自动化构建](#自动化构建)
+    - [特性](#特性)
+    - [构建状态](#构建状态)
+    - [详细信息](#详细信息)
   - [Conclusion](#conclusion)
 
 ## Overview
@@ -106,6 +110,25 @@ environment:
 ```
 
 In this example, the ZeroTier moon will join the networks with IDs `888888888888888`, `666666666666666`, and `999999999999999`. You can specify multiple network IDs separated by spaces.
+
+## 自动化构建
+
+本项目使用GitHub Actions实现自动化构建流程，每天会自动检查ZeroTierOne的最新release并构建Docker镜像。
+
+### 特性
+
+- **自动检查更新**：每天自动检查ZeroTierOne的最新release
+- **多架构支持**：构建amd64和arm64架构的镜像
+- **版本比较**：智能比较版本号，仅在有新版本时构建
+- **自动推送**：构建完成后自动推送到Docker Hub
+
+### 构建状态
+
+[![GitHub Actions](https://github.com/criogaid/zerotier-moon/workflows/Update%20Docker%20Image/badge.svg)](https://github.com/criogaid/zerotier-moon/actions)
+
+### 详细信息
+
+关于自动化构建的详细设置和使用说明，请参阅[AUTOMATION.md](AUTOMATION.md)。
 
 ## Conclusion
 This Docker image simplifies the process of setting up a ZeroTier moon, allowing you to focus on building your network. For any issues or contributions, feel free to open an issue or pull request in this repository. Happy networking!
