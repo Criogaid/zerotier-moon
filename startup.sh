@@ -48,16 +48,35 @@ while getopts "4:6:p:" arg; do
 done
 
 # -------------------------
+# clean and validate args
+# -------------------------
+# Remove any whitespace from arguments
+ipv4_address=$(echo "$ipv4_address" | tr -d '[:space:]')
+ipv6_address=$(echo "$ipv6_address" | tr -d '[:space:]')
+moon_port=$(echo "$moon_port" | tr -d '[:space:]')
+
+# Validate port number
+if ! echo "$moon_port" | grep -qE '^[0-9]+$'; then
+  echo "Error: Invalid port number: [$moon_port]"
+  exit 1
+fi
+
+if [ "$moon_port" -lt 1 ] || [ "$moon_port" -gt 65535 ]; then
+  echo "Error: Port number must be between 1 and 65535, got: $moon_port"
+  exit 1
+fi
+
+# -------------------------
 # auto detect IPs
 # -------------------------
 if [ -z "${ipv4_address+x}" ]; then
   log "IPv4 unset, auto detecting"
-  ipv4_address=$(curl -s https://api.ipify.org || true)
+  ipv4_address=$(curl -s https://api.ipify.org | tr -d '[:space:]' || true)
 fi
 
 if [ -z "${ipv6_address+x}" ]; then
   log "IPv6 unset, auto detecting"
-  ipv6_address=$(curl -s https://api6.ipify.org || true)
+  ipv6_address=$(curl -s https://api6.ipify.org | tr -d '[:space:]' || true)
 fi
 
 if [ -z "$ipv4_address" ] && [ -z "$ipv6_address" ]; then
@@ -79,6 +98,10 @@ if [ -n "$ipv6_address" ]; then
   stable_endpoints="$stable_endpoints\"$ipv6_address/$moon_port\""
 fi
 
+# Debug information
+log "Debug: ipv4_address=[$ipv4_address]"
+log "Debug: ipv6_address=[$ipv6_address]"
+log "Debug: moon_port=[$moon_port]"
 log "StableEndpoints: [$stable_endpoints]"
 
 # -------------------------
@@ -120,6 +143,17 @@ done
 
 sed -i "s#\"stableEndpoints\": \[\]#\"stableEndpoints\": [$stable_endpoints]#g" \
   "$ZT_DIR/moon.json"
+
+# Verify sed replacement was successful
+if grep -q '"stableEndpoints": \[\]' "$ZT_DIR/moon.json"; then
+  log "Error: Failed to update stableEndpoints in moon.json"
+  log "This usually happens when stableEndpoints format is unexpected"
+  log "Contents of moon.json:"
+  cat "$ZT_DIR/moon.json"
+  exit 1
+fi
+
+log "Successfully updated moon.json with stableEndpoints"
 
 /usr/sbin/zerotier-idtool genmoon "$ZT_DIR/moon.json" >/dev/null
 

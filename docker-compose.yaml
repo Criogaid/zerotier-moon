@@ -20,6 +20,9 @@ services:
       - NET_ADMIN
       - SYS_ADMIN
     command:
-      - -4 YourIPv4Address
-      - -6 YourIPv6AddressIfYouHaveOne
-      - -p 9993
+      - "-4"
+      - "YourIPv4Address"
+      - "-6"
+      - "YourIPv6AddressIfYouHaveOne"
+      - "-p"
+      - "9993"
