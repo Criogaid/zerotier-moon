@@ -1,5 +1,7 @@
 # ZeroTier Moon Docker Image
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 🐳 A Docker image for creating a ZeroTier moon in a single step.
 
 ## Table of Contents
@@ -83,9 +85,12 @@ services:
       - NET_ADMIN
       - SYS_ADMIN
     command:
-      - -4 YourIPv4Address # Optional, if you don't have an IPv4 address, remove this line
-      - -6 YourIPv6AddressIfYouHaveOne # Optional, if you don't have an IPv6 address, remove this line
-      - -p 9993 # Optional, specify the port to use
+      - "-4"
+      - "YourIPv4Address" # Optional, if you don't have an IPv4 address, remove this line
+      - "-6"
+      - "YourIPv6AddressIfYouHaveOne" # Optional, if you don't have an IPv6 address, remove this line
+      - "-p"
+      - "9993" # Optional, specify the port to use
 ```
 
 ## Log Output
@@ -111,24 +116,24 @@ environment:
 
 In this example, the ZeroTier moon will join the networks with IDs `888888888888888`, `666666666666666`, and `999999999999999`. You can specify multiple network IDs separated by spaces.
 
-## 自动化构建
+## Automated Build
 
-本项目使用GitHub Actions实现自动化构建流程，每天会自动检查ZeroTierOne的最新release并构建Docker镜像。
+This project uses GitHub Actions to automate the build process, checking for the latest ZeroTierOne release daily and building Docker images automatically.
 
-### 特性
+### Features
 
-- **自动检查更新**：每天自动检查ZeroTierOne的最新release
-- **多架构支持**：构建amd64和arm64架构的镜像
-- **版本比较**：智能比较版本号，仅在有新版本时构建
-- **自动推送**：构建完成后自动推送到Docker Hub
+- **Automatic Update Checks**: Daily checks for the latest ZeroTierOne releases
+- **Multi-Architecture Support**: Builds images for both amd64 and arm64 architectures
+- **Version Comparison**: Intelligently compares version numbers, building only when new versions are available
+- **Automatic Push**: Automatically pushes built images to Docker Hub
 
-### 构建状态
+### Build Status
 
 [![GitHub Actions](https://github.com/criogaid/zerotier-moon/workflows/Update%20Docker%20Image/badge.svg)](https://github.com/criogaid/zerotier-moon/actions)
 
-### 详细信息
+### More Information
 
-关于自动化构建的详细设置和使用说明，请参阅[AUTOMATION.md](AUTOMATION.md)。
+For detailed setup and usage instructions regarding automated builds, please refer to [AUTOMATION.md](AUTOMATION.md).
 
 ## Conclusion
 This Docker image simplifies the process of setting up a ZeroTier moon, allowing you to focus on building your network. For any issues or contributions, feel free to open an issue or pull request in this repository. Happy networking!
