@@ -16,10 +16,10 @@
   - [Docker Compose Configuration](#docker-compose-configuration)
   - [Log Output](#log-output)
   - [Example](#example)
-  - [自动化构建](#自动化构建)
-    - [特性](#特性)
-    - [构建状态](#构建状态)
-    - [详细信息](#详细信息)
+  - [Automated Build](#automated-build)
+    - [Features](#features)
+    - [Build Status](#build-status)
+    - [More Information](#more-information)
   - [Conclusion](#conclusion)
 
 ## Overview
@@ -63,8 +63,6 @@ docker run --rm \
 For a more streamlined setup, you can use Docker Compose. Below is a sample configuration:
 
 ```yaml
-version: '3'
-
 services:
   zerotier-moon:
     image: criogaid/zerotier-moon

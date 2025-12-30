@@ -63,8 +63,6 @@ docker run --rm \
 为了简化部署流程，您可以使用 Docker Compose。以下是示例配置：
 
 ```yaml
-version: '3'
-
 services:
   zerotier-moon:
     image: criogaid/zerotier-moon
@@ -133,7 +131,7 @@ environment:
 
 ### 详细信息
 
-关于自动化构建的详细设置和使用说明，请参阅 [AUTOMATION.md](AUTOMATION.md)。
+关于自动化构建的详细设置和使用说明，请参阅 [AUTOMATION.zh-CN.md](AUTOMATION.zh-CN.md)。
 
 ## 结语
 此 Docker 镜像简化了 ZeroTier Moon 的搭建过程，让您可以专注于构建您的网络。如有任何问题或贡献，欢迎在本仓库中提交 issue 或 pull request。祝您网络搭建愉快！

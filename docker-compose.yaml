@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   zerotier-moon:
     image: criogaid/zerotier-moon
