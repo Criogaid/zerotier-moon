@@ -44,11 +44,12 @@
 
 你可以手动触发工作流来测试配置：
 
-1. 进入Actions页面
-2. 选择"Update Docker Image"工作流
-3. 点击"Run workflow"按钮
-4. 选择分支（通常是main或master）
-5. 点击"Run workflow"
+1. 进入 Actions 页面
+2. 选择 "Update Docker Image" 工作流
+3. 点击 "Run workflow" 按钮
+4. 选择分支（通常为 `main`）
+5. 仅在需要重建当前最新版本时启用 `force_rebuild`
+6. 点击 "Run workflow"
 
 ## 工作流详解
 
@@ -61,7 +62,7 @@
 1. **获取ZeroTierOne最新版本**：从GitHub API获取最新release tag
 2. **获取Docker Hub当前版本**：从Docker Hub API获取当前最新版本tag
 3. **版本比较**：使用语义化版本比较逻辑
-4. **构建决策**：ZeroTierOne 有新版本，或版本标签与 `latest` 的 manifest digest 不一致时构建
+4. **构建决策**：ZeroTierOne 有新版本、版本标签与 `latest` 的 manifest digest 不一致，或手动强制重建时构建
 
 ### 构建流程
 

@@ -47,8 +47,9 @@ You can manually trigger the workflow to test your configuration:
 1. Go to the Actions page
 2. Select the "Update Docker Image" workflow
 3. Click the "Run workflow" button
-4. Select the branch (usually main or master)
-5. Click "Run workflow"
+4. Select the branch (usually `main`)
+5. Enable `force_rebuild` only when you need to rebuild the current latest version
+6. Click "Run workflow"
 
 ## Workflow Details
 
@@ -61,7 +62,7 @@ The workflow runs automatically daily at 08:00 UTC (16:00 Beijing time).
 1. **Get Latest ZeroTierOne Version**: Fetch the latest release tag from GitHub API
 2. **Get Current Docker Hub Version**: Fetch the current latest version tag from Docker Hub API
 3. **Version Comparison**: Use semantic version comparison logic
-4. **Build Decision**: Build for a new ZeroTierOne version, or retry when the version tag and `latest` manifest digests differ
+4. **Build Decision**: Build for a new ZeroTierOne version, retry when the version tag and `latest` manifest digests differ, or rebuild when manually forced
 
 ### Build Process
 

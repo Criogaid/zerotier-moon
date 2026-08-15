@@ -4,7 +4,13 @@ on:
   schedule:
     # 每天 UTC 时间 08:00 运行 (北京时间 16:00)
     - cron: '0 8 * * *'
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: Rebuild the latest ZeroTier version even if it is already published
+        required: false
+        type: boolean
+        default: false
 
 env:
   IMAGE_NAME: criogaid/zerotier-moon
@@ -67,6 +73,7 @@ jobs:
           DOCKER_TAG="${{ steps.get-docker-tag.outputs.tag }}"
           CURRENT_DIGEST="${{ steps.get-docker-tag.outputs.current_digest }}"
           LATEST_DIGEST="${{ steps.get-docker-tag.outputs.latest_digest }}"
+          FORCE_REBUILD="${{ inputs.force_rebuild }}"
 
           echo "ZeroTierOne tag: $ZEROTIER_TAG"
           echo "Docker Hub tag: $DOCKER_TAG"
@@ -74,7 +81,11 @@ jobs:
           # 先验证上游 tag；格式异常必须停止发布。
           ./scripts/compare-versions.sh "$ZEROTIER_TAG" "$ZEROTIER_TAG" >/dev/null
 
-          if [ -z "$DOCKER_TAG" ]; then
+          if [ "$FORCE_REBUILD" = "true" ]; then
+            echo "Force rebuild requested for $ZEROTIER_TAG..."
+            echo "should-build=true" >> "$GITHUB_OUTPUT"
+            echo "new-tag=$ZEROTIER_TAG" >> "$GITHUB_OUTPUT"
+          elif [ -z "$DOCKER_TAG" ]; then
             echo "No version tag found on Docker Hub, building image..."
             echo "should-build=true" >> "$GITHUB_OUTPUT"
             echo "new-tag=$ZEROTIER_TAG" >> "$GITHUB_OUTPUT"
