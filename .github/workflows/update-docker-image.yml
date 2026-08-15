@@ -6,143 +6,263 @@ on:
     - cron: '0 8 * * *'
   workflow_dispatch: # 允许手动触发
 
+env:
+  IMAGE_NAME: criogaid/zerotier-moon
+  DOCKER_BUILD_RECORD_UPLOAD: 'false'
+
+permissions:
+  contents: read
+
 jobs:
   check-and-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       should-build: ${{ steps.compare.outputs.should-build }}
       new-tag: ${{ steps.compare.outputs.new-tag }}
       current-tag: ${{ steps.get-docker-tag.outputs.tag }}
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Get latest ZeroTierOne release tag
-      id: get-zerotier-tag
-      run: |
-        echo "Fetching latest ZeroTierOne release tag..."
-        LATEST_TAG=$(curl -s "https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        echo "Latest ZeroTierOne tag: $LATEST_TAG"
-        echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-        
-    - name: Get current Docker Hub tag
-      id: get-docker-tag
-      run: |
-        echo "Fetching current Docker Hub tag..."
-        # 获取Docker Hub仓库的最新标签
-        DOCKER_TAGS=$(curl -s "https://registry.hub.docker.com/v2/repositories/criogaid/zerotier-moon/tags/?page_size=100" | grep -o '"name":"[^"]*"' | cut -d'"' -f4 | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-        echo "Current Docker Hub tag: $DOCKER_TAGS"
-        echo "tag=$DOCKER_TAGS" >> $GITHUB_OUTPUT
-        
-    - name: Make compare script executable
-      run: chmod +x scripts/compare-versions.sh
-      
-    - name: Compare versions
-      id: compare
-      run: |
-        ZEROTIER_TAG="${{ steps.get-zerotier-tag.outputs.tag }}"
-        DOCKER_TAG="${{ steps.get-docker-tag.outputs.tag }}"
-        
-        echo "ZeroTierOne tag: $ZEROTIER_TAG"
-        echo "Docker Hub tag: $DOCKER_TAG"
-        
-        # 如果Docker Hub没有版本标签，直接构建
-        if [ -z "$DOCKER_TAG" ]; then
-          echo "No version tag found on Docker Hub, building image..."
-          echo "should-build=true" >> $GITHUB_OUTPUT
-          echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
-        else
-          # 使用版本比较脚本并从输出中解析结果
-          COMPARE_OUTPUT=$(./scripts/compare-versions.sh "$ZEROTIER_TAG" "$DOCKER_TAG")
-          echo "Compare output: $COMPARE_OUTPUT"
-          
-          # 从输出中解析比较结果
-          if [[ $COMPARE_OUTPUT == *"Error: Invalid version format"* ]]; then
-            # 版本格式错误，默认构建以防万一
-            echo "Version format error, building image by default..."
-            echo "should-build=true" >> $GITHUB_OUTPUT
-            echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
-          elif [[ $COMPARE_OUTPUT == *">"* ]]; then
-            echo "New version detected ($ZEROTIER_TAG > $DOCKER_TAG), building image..."
-            echo "should-build=true" >> $GITHUB_OUTPUT
-            echo "new-tag=$ZEROTIER_TAG" >> $GITHUB_OUTPUT
-          elif [[ $COMPARE_OUTPUT == *"="* ]]; then
-            echo "Versions are equal ($ZEROTIER_TAG = $DOCKER_TAG), skipping build..."
-            echo "should-build=false" >> $GITHUB_OUTPUT
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Get latest ZeroTierOne release tag
+        id: get-zerotier-tag
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          echo "Fetching latest ZeroTierOne release tag..."
+          LATEST_TAG=$(curl --fail-with-body --location --retry 3 --show-error --silent \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/zerotier/ZeroTierOne/releases/latest" \
+            | jq -er '.tag_name | select(test("^[0-9]+[.][0-9]+[.][0-9]+$"))')
+          echo "Latest ZeroTierOne tag: $LATEST_TAG"
+          echo "tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Get current Docker Hub tag
+        id: get-docker-tag
+        run: |
+          echo "Fetching current Docker Hub tag..."
+          TAGS_JSON=$(curl --fail-with-body --location --retry 3 --show-error --silent \
+            "https://registry.hub.docker.com/v2/repositories/criogaid/zerotier-moon/tags/?page_size=100")
+          DOCKER_TAGS=$(jq -r '[.results[].name | select(test("^[0-9]+[.][0-9]+[.][0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last // ""' <<< "$TAGS_JSON")
+          CURRENT_DIGEST=$(jq -r --arg tag "$DOCKER_TAGS" \
+            '[.results[] | select(.name == $tag) | (.digest // "")][0] // ""' <<< "$TAGS_JSON")
+          LATEST_DIGEST=$(jq -r \
+            '[.results[] | select(.name == "latest") | (.digest // "")][0] // ""' <<< "$TAGS_JSON")
+          echo "Current Docker Hub tag: $DOCKER_TAGS"
+          echo "Current version digest: $CURRENT_DIGEST"
+          echo "Latest digest: $LATEST_DIGEST"
+          echo "tag=$DOCKER_TAGS" >> "$GITHUB_OUTPUT"
+          echo "current_digest=$CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "latest_digest=$LATEST_DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Make compare script executable
+        run: chmod +x scripts/compare-versions.sh
+
+      - name: Compare versions
+        id: compare
+        run: |
+          ZEROTIER_TAG="${{ steps.get-zerotier-tag.outputs.tag }}"
+          DOCKER_TAG="${{ steps.get-docker-tag.outputs.tag }}"
+          CURRENT_DIGEST="${{ steps.get-docker-tag.outputs.current_digest }}"
+          LATEST_DIGEST="${{ steps.get-docker-tag.outputs.latest_digest }}"
+
+          echo "ZeroTierOne tag: $ZEROTIER_TAG"
+          echo "Docker Hub tag: $DOCKER_TAG"
+
+          # 先验证上游 tag；格式异常必须停止发布。
+          ./scripts/compare-versions.sh "$ZEROTIER_TAG" "$ZEROTIER_TAG" >/dev/null
+
+          if [ -z "$DOCKER_TAG" ]; then
+            echo "No version tag found on Docker Hub, building image..."
+            echo "should-build=true" >> "$GITHUB_OUTPUT"
+            echo "new-tag=$ZEROTIER_TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "Docker Hub version is newer ($DOCKER_TAG > $ZEROTIER_TAG), skipping build..."
-            echo "should-build=false" >> $GITHUB_OUTPUT
+            COMPARE_OUTPUT=$(./scripts/compare-versions.sh "$ZEROTIER_TAG" "$DOCKER_TAG")
+            echo "Compare output: $COMPARE_OUTPUT"
+
+            if [ "$COMPARE_OUTPUT" = "$ZEROTIER_TAG > $DOCKER_TAG" ]; then
+              echo "New version detected ($ZEROTIER_TAG > $DOCKER_TAG), building image..."
+              echo "should-build=true" >> "$GITHUB_OUTPUT"
+              echo "new-tag=$ZEROTIER_TAG" >> "$GITHUB_OUTPUT"
+            elif [ "$COMPARE_OUTPUT" = "$ZEROTIER_TAG = $DOCKER_TAG" ]; then
+              if [ -n "$CURRENT_DIGEST" ] && [ "$CURRENT_DIGEST" = "$LATEST_DIGEST" ]; then
+                echo "Versions and manifest digests are equal, skipping build..."
+                echo "should-build=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "Version exists but latest differs; rebuilding to repair publication..."
+                echo "should-build=true" >> "$GITHUB_OUTPUT"
+                echo "new-tag=$ZEROTIER_TAG" >> "$GITHUB_OUTPUT"
+              fi
+            elif [ "$COMPARE_OUTPUT" = "$ZEROTIER_TAG < $DOCKER_TAG" ]; then
+              echo "Docker Hub version is newer ($DOCKER_TAG > $ZEROTIER_TAG), skipping build..."
+              echo "should-build=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "Unexpected version comparison output: $COMPARE_OUTPUT" >&2
+              exit 1
+            fi
           fi
-        fi
-        
-  build-and-push:
+
+  build:
+    name: Build ${{ matrix.platform }}
     needs: check-and-build
     if: needs.check-and-build.outputs.should-build == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      
+    runs-on: ${{ matrix.runner }}
+    outputs:
+      amd64: ${{ steps.digest.outputs.amd64 }}
+      arm64: ${{ steps.digest.outputs.arm64 }}
+      armv7: ${{ steps.digest.outputs.armv7 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+          - arch: armv7
+            platform: linux/arm/v7
+            runner: ubuntu-24.04-arm
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: criogaid/zerotier-moon
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=raw,value=${{ needs.check-and-build.outputs.new-tag }}
-          type=raw,value=latest
-          
-    - name: Build and push Docker image
-      id: build
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        build-args: TAG=${{ needs.check-and-build.outputs.new-tag }}
-        tags: |
-          criogaid/zerotier-moon:${{ needs.check-and-build.outputs.new-tag }}
-          criogaid/zerotier-moon:latest
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        
-    - name: Make scripts executable
-      run: |
-        chmod +x scripts/compare-versions.sh
-        chmod +x scripts/notify.sh
-        
-    - name: Notify success
-      if: success()
-      run: |
-        ./scripts/notify.sh success "Successfully built and pushed Docker image criogaid/zerotier-moon:${{ needs.check-and-build.outputs.new-tag }}" "${{ secrets.WEBHOOK_URL }}"
-        
-    - name: Notify failure
-      if: failure()
-      run: |
-        ./scripts/notify.sh failure "Failed to build Docker image for ZeroTierOne version ${{ needs.check-and-build.outputs.new-tag }}" "${{ secrets.WEBHOOK_URL }}"
-        
-    - name: Image digest
-      if: success()
-      run: echo ${{ steps.build.outputs.digest }}
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # ARMv7 在 ARM64 runner 上通过 QEMU 执行目标架构构建。
+      - name: Set up QEMU
+        if: matrix.arch == 'armv7'
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: TAG=${{ needs.check-and-build.outputs.new-tag }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: |
+            type=gha,scope=zerotier-moon-${{ matrix.arch }}
+            type=registry,ref=${{ env.IMAGE_NAME }}:latest
+          cache-to: |
+            type=gha,scope=zerotier-moon-${{ matrix.arch }},mode=max,ignore-error=true
+            type=inline
+          provenance: false
+          pull: true
+
+      - name: Export digest
+        id: digest
+        run: echo "${{ matrix.arch }}=${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+  merge-and-push:
+    name: Merge and publish
+    needs: [check-and-build, build]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Create and inspect multi-platform image
+        env:
+          IMAGE_TAG: ${{ needs.check-and-build.outputs.new-tag }}
+          AMD64_DIGEST: ${{ needs.build.outputs.amd64 }}
+          ARM64_DIGEST: ${{ needs.build.outputs.arm64 }}
+          ARMV7_DIGEST: ${{ needs.build.outputs.armv7 }}
+        run: |
+          set -euo pipefail
+
+          digests=("$AMD64_DIGEST" "$ARM64_DIGEST" "$ARMV7_DIGEST")
+          for digest in "${digests[@]}"; do
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Invalid platform digest: $digest" >&2
+              exit 1
+            fi
+          done
+
+          if [ "$(printf '%s\n' "${digests[@]}" | sort -u | wc -l)" -ne "${#digests[@]}" ]; then
+            echo "Expected one distinct digest per platform" >&2
+            exit 1
+          fi
+
+          sources=()
+          for digest in "${digests[@]}"; do
+            sources+=("${IMAGE_NAME}@${digest}")
+          done
+
+          platforms() {
+            python3 -c 'import json, sys; data=json.load(sys.stdin); print(",".join(sorted("/".join(filter(None, (p["platform"]["os"], p["platform"]["architecture"], p["platform"].get("variant")))) for p in data["manifests"])))'
+          }
+
+          expected='linux/amd64,linux/arm/v7,linux/arm64'
+          actual=$(docker buildx imagetools create --dry-run "${sources[@]}" | platforms)
+          if [ "$actual" != "$expected" ]; then
+            echo "Unexpected candidate platforms: $actual" >&2
+            exit 1
+          fi
+
+          docker buildx imagetools create \
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+            -t "${IMAGE_NAME}:latest" \
+            "${sources[@]}"
+
+          actual=$(docker buildx imagetools inspect "${IMAGE_NAME}:${IMAGE_TAG}" --raw | platforms)
+          if [ "$actual" != "$expected" ]; then
+            echo "Unexpected published platforms: $actual" >&2
+            exit 1
+          fi
+
+          docker buildx imagetools inspect "${IMAGE_NAME}:${IMAGE_TAG}"
+
+  notify:
+    name: Notify result
+    needs: [check-and-build, build, merge-and-push]
+    if: always() && (needs.check-and-build.result == 'failure' || needs.check-and-build.outputs.should-build == 'true')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Send notification
+        env:
+          CHECK_RESULT: ${{ needs.check-and-build.result }}
+          IMAGE_TAG: ${{ needs.check-and-build.outputs.new-tag }}
+          PUBLISH_RESULT: ${{ needs.merge-and-push.result }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        run: |
+          chmod +x scripts/notify.sh
+          if [ "$CHECK_RESULT" != "success" ]; then
+            status=failure
+            message="Failed to check upstream or Docker Hub versions"
+          elif [ "$PUBLISH_RESULT" = "success" ]; then
+            status=success
+            message="Successfully built and pushed ${IMAGE_NAME}:${IMAGE_TAG}"
+          else
+            status=failure
+            message="Failed to build or publish ZeroTierOne ${IMAGE_TAG}"
+          fi
+
+          if ! ./scripts/notify.sh "$status" "$message" "$WEBHOOK_URL"; then
+            echo "::warning::Notification delivery failed"
+          fi

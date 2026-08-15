@@ -59,6 +59,9 @@ docker run --rm \
 - `你的IPv4地址`：替换为您的实际 IPv4 地址。如果您没有 IPv4 地址，可以省略此参数。
 - `你的IPv6地址如果有的话`：如果有 IPv6 地址，请替换为您的实际 IPv6 地址。如果没有，可以省略此参数。
 
+### Moon 持久化状态
+复用持久化 identity 时，如果实际使用的 IPv4、IPv6 或端口发生变化，容器会重新生成本地 Moon 配置，但 Moon ID 保持不变。如果自动 IP 探测暂时失败，则保留该地址族已有的 endpoint。首次启动必须至少获得一个有效 endpoint，并在 60 秒内完成 identity 生成。
+
 ## Docker Compose 配置
 为了简化部署流程，您可以使用 Docker Compose。以下是示例配置：
 
@@ -92,14 +95,13 @@ services:
 ```
 
 ## 日志输出
-成功启动后，您应该会看到类似以下的日志：
+首次成功启动后，您应该会看到类似以下的日志：
 
-```bash
-IPv4 address: xxx.xxx.xxx.xxx
-IPv6 address is unset, automatically catching the IPv6 address
-Failed to catch the IPv6 address.
-=> Configuring networks to join
-Your ZeroTier moon ID is xxxxxxxxxx. You can orbit the moon using "zerotier-cli orbit xxxxxxxxx xxxxxxxxx"
+```text
+=> StableEndpoints: ["203.0.113.10/9993"]
+=> Generating Moon configuration
+Moon ID: xxxxxxxxxx
+Orbit command: zerotier-cli orbit xxxxxxxxxx xxxxxxxxxx
 Starting Control Plane...
 Starting V6 Control Plane...
 ```
@@ -109,10 +111,10 @@ Starting V6 Control Plane...
 
 ```yaml
 environment:
-  - ZEROTIER_JOIN_NETWORKS=888888888888888 666666666666666 999999999999999
+  - ZEROTIER_JOIN_NETWORKS=8888888888888888 6666666666666666 9999999999999999
 ```
 
-在此示例中，ZeroTier Moon 将加入网络 ID 为 `888888888888888`、`666666666666666` 和 `999999999999999` 的网络。您可以指定多个网络 ID，用空格分隔。
+在此示例中，ZeroTier Moon 会加入列出的网络。每个网络 ID 必须恰好由 16 位十六进制字符组成；多个 ID 使用空格分隔。
 
 ## 自动化构建
 
@@ -121,7 +123,7 @@ environment:
 ### 特性
 
 - **自动检查更新**：每天自动检查 ZeroTierOne 的最新 release
-- **多架构支持**：构建 amd64 和 arm64 架构的镜像
+- **多架构支持**：构建 amd64、arm64 和 arm/v7 镜像
 - **版本比较**：智能比较版本号，仅在有新版本时构建
 - **自动推送**：构建完成后自动推送到 Docker Hub
 

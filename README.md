@@ -59,6 +59,9 @@ docker run --rm \
 - `YourIPv4Address`: Replace with your actual IPv4 address. If you do not have one, you can omit this parameter.
 - `YourIPv6AddressIfYouHaveOne`: Replace with your actual IPv6 address if available. If not, you can omit this parameter.
 
+### Persistent Moon State
+When the persisted identity is reused, changing the effective IPv4, IPv6, or port regenerates the local Moon configuration without changing the Moon ID. If automatic IP detection temporarily fails, an existing endpoint for that address family is preserved. On first startup, at least one valid endpoint is required, and identity generation must finish within 60 seconds.
+
 ## Docker Compose Configuration
 For a more streamlined setup, you can use Docker Compose. Below is a sample configuration:
 
@@ -92,14 +95,13 @@ services:
 ```
 
 ## Log Output
-Upon successful startup, you should see logs similar to the following:
+Upon successful first startup, you should see logs similar to the following:
 
-```bash
-IPv4 address: xxx.xxx.xxx.xxx
-IPv6 address is unset, automatically catching the IPv6 address
-Failed to catch the IPv6 address.
-=> Configuring networks to join
-Your ZeroTier moon ID is xxxxxxxxxx. You can orbit the moon using "zerotier-cli orbit xxxxxxxxx xxxxxxxxx"
+```text
+=> StableEndpoints: ["203.0.113.10/9993"]
+=> Generating Moon configuration
+Moon ID: xxxxxxxxxx
+Orbit command: zerotier-cli orbit xxxxxxxxxx xxxxxxxxxx
 Starting Control Plane...
 Starting V6 Control Plane...
 ```
@@ -109,10 +111,10 @@ To join specific ZeroTier networks, you can set the `ZEROTIER_JOIN_NETWORKS` env
 
 ```yaml
 environment:
-  - ZEROTIER_JOIN_NETWORKS=888888888888888 666666666666666 999999999999999
+  - ZEROTIER_JOIN_NETWORKS=8888888888888888 6666666666666666 9999999999999999
 ```
 
-In this example, the ZeroTier moon will join the networks with IDs `888888888888888`, `666666666666666`, and `999999999999999`. You can specify multiple network IDs separated by spaces.
+In this example, the ZeroTier Moon joins the listed networks. Each network ID must contain exactly 16 hexadecimal characters; separate multiple IDs with spaces.
 
 ## Automated Build
 
@@ -121,7 +123,7 @@ This project uses GitHub Actions to automate the build process, checking for the
 ### Features
 
 - **Automatic Update Checks**: Daily checks for the latest ZeroTierOne releases
-- **Multi-Architecture Support**: Builds images for both amd64 and arm64 architectures
+- **Multi-Architecture Support**: Builds amd64, arm64, and arm/v7 images
 - **Version Comparison**: Intelligently compares version numbers, building only when new versions are available
 - **Automatic Push**: Automatically pushes built images to Docker Hub
 

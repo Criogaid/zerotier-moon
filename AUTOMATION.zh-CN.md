@@ -10,7 +10,7 @@
 
 1. 每天自动检查ZeroTierOne的最新release
 2. 与Docker Hub上的当前版本进行比较
-3. 如果发现新版本，自动构建多架构（amd64和arm64）的Docker镜像
+3. 如果发现新版本，构建 amd64、arm64 和 arm/v7 镜像
 4. 将构建好的镜像推送到Docker Hub
 
 ## 设置步骤
@@ -61,15 +61,17 @@
 1. **获取ZeroTierOne最新版本**：从GitHub API获取最新release tag
 2. **获取Docker Hub当前版本**：从Docker Hub API获取当前最新版本tag
 3. **版本比较**：使用语义化版本比较逻辑
-4. **构建决策**：仅当ZeroTierOne有新版本时才构建
+4. **构建决策**：ZeroTierOne 有新版本，或版本标签与 `latest` 的 manifest digest 不一致时构建
 
 ### 构建流程
 
-1. **多架构支持**：构建amd64和arm64架构的镜像
-2. **标签策略**：
-   - 使用ZeroTierOne版本号作为标签（如`1.14.0`）
-   - 同时更新`latest`标签
-3. **缓存优化**：使用GitHub Actions缓存加速构建
+1. **多架构支持**：构建 `linux/amd64`、`linux/arm64` 和 `linux/arm/v7` 镜像
+2. **原生构建优先**：amd64 和 arm64 原生构建；ARMv7 在 ARM64 runner 上通过 QEMU 模拟
+3. **可恢复发布**：先推送各平台的不可变 digest，所有平台成功后才发布标签；版本标签与 `latest` 不一致时自动重试
+4. **标签策略**：
+   - 使用 ZeroTierOne 版本号作为版本标签（例如 `1.16.2`）
+   - 将 `latest` 更新为同一个已验证的多平台 manifest
+5. **缓存优化**：使用 BuildKit `mode=max` 将全部中间层导出到按架构隔离的 GitHub Actions 缓存，并保留已有 `latest` 的 inline 缓存作为回退
 
 ### 通知系统
 
@@ -79,6 +81,7 @@
 - 构建失败时
 
 支持Slack、Discord等支持Webhook的平台。
+Webhook payload 会进行 JSON 转义；HTTP 投递失败会记录为 workflow warning，但不会回滚或阻断已经发布的镜像。
 
 ## 故障排除
 
@@ -116,10 +119,12 @@ schedule:
 
 ### 添加更多架构
 
-在构建步骤中添加更多平台：
+仅在 Alpine 和 ZeroTierOne 支持目标平台时添加 matrix 项。有原生 runner 时优先使用；非原生目标还需添加对应的 QEMU setup 条件。每个平台必须使用唯一的 `arch` 值，因为它同时作为 digest 输出键：
 
 ```yaml
-platforms: linux/amd64,linux/arm64,linux/arm/v7
+- arch: example
+  platform: linux/example
+  runner: host-runner-label
 ```
 
 ### 自定义通知格式

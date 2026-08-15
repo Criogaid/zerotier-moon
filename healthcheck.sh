@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 if ! zerotier-cli status | grep -q ONLINE; then
   echo "Zerotier is not online."

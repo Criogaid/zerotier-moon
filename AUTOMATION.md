@@ -10,7 +10,7 @@ This automated workflow will:
 
 1. Automatically check for the latest ZeroTierOne release daily
 2. Compare with the current version on Docker Hub
-3. If a new version is found, automatically build multi-architecture (amd64 and arm64) Docker images
+3. If a new version is found, build amd64, arm64, and arm/v7 images
 4. Push the built images to Docker Hub
 
 ## Setup Steps
@@ -61,15 +61,17 @@ The workflow runs automatically daily at 08:00 UTC (16:00 Beijing time).
 1. **Get Latest ZeroTierOne Version**: Fetch the latest release tag from GitHub API
 2. **Get Current Docker Hub Version**: Fetch the current latest version tag from Docker Hub API
 3. **Version Comparison**: Use semantic version comparison logic
-4. **Build Decision**: Only build when a new ZeroTierOne version is available
+4. **Build Decision**: Build for a new ZeroTierOne version, or retry when the version tag and `latest` manifest digests differ
 
 ### Build Process
 
-1. **Multi-Architecture Support**: Build images for amd64 and arm64 architectures
-2. **Tag Strategy**:
-   - Use ZeroTierOne version number as tag (e.g., `1.14.0`)
-   - Also update the `latest` tag
-3. **Cache Optimization**: Use GitHub Actions cache to speed up builds
+1. **Multi-Architecture Support**: Build `linux/amd64`, `linux/arm64`, and `linux/arm/v7` images
+2. **Native Builds First**: Build amd64 and arm64 natively; emulate ARMv7 with QEMU on the ARM64 runner
+3. **Recoverable Publication**: Push immutable per-platform digests first, publish tags only after all platforms succeed, and retry if the version tag and `latest` diverge
+4. **Tag Strategy**:
+   - Use the ZeroTierOne version number as the version tag (for example, `1.16.2`)
+   - Update `latest` to the same verified multi-platform manifest
+5. **Cache Optimization**: Export all intermediate layers to architecture-scoped GitHub Actions caches with BuildKit `mode=max`, and retain the previous `latest` inline cache as a fallback
 
 ### Notification System
 
@@ -79,6 +81,7 @@ If `WEBHOOK_URL` is configured, the workflow will send notifications in the foll
 - When build fails
 
 Supports platforms that support webhooks, such as Slack and Discord.
+Webhook payloads are JSON-escaped, and HTTP failures are reported as workflow warnings without rolling back or blocking an image that has already been published.
 
 ## Troubleshooting
 
@@ -116,10 +119,12 @@ schedule:
 
 ### Add More Architectures
 
-Add more platforms in the build step:
+Add a matrix entry only when Alpine and ZeroTierOne support the target. Use a native runner where available; non-native targets also need a matching QEMU setup condition. Each platform must use a unique `arch` value because it becomes the digest output key:
 
 ```yaml
-platforms: linux/amd64,linux/arm64,linux/arm/v7
+- arch: example
+  platform: linux/example
+  runner: host-runner-label
 ```
 
 ### Customize Notification Format
